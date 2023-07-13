@@ -1,0 +1,142 @@
+#Install Apache Kafka from site: https://kafka.apache.org/downloads
+# install java environment from oracal.com
+
+#setup folder structure for kafka in 'c' directory
+To Run the Kafka server run below commands in cmd:
+	.\bin\windows\zookeeper-server-start.bat .\config\zookeeper.properties  # zookeper running
+
+#Start Kafka server:
+	.\bin\windows\zookeeper-server-start.bat .\config\zookeeper.properties #kafka server is running
+	
+#To run the produser function	
+	.\bin\windows\kafka-server-start.bat .\config\server.properties
+
+#Create 'Topic'(table) in relational database 
+	kafka-topics.bat --create --bootstrap-server localhost:9092 --replication-factor 1 --partition 1 --topic test
+#To run the produser function  
+	kafka-console-producer.bat --broker-list localhost:9092 --topic test
+	
+#To run the consumer function
+		kafka-console-consumer.bat --topic test --bootstrap-server localhost:9092 --from-beginning
+-------------------------------------------------------------------------------------------------------
+from kafka import KafkaConsumer
+from datetime import datetime
+from pytz import timezone
+from happybase import Connection
+from elasticsearch import Elasticsearch
+
+# Kafka configuration
+kafka_bootstrap_servers = 'localhost:9092'
+kafka_topic = 'clickstream_topic'
+
+# HBase configuration
+hbase_host = 'localhost'
+hbase_table = 'clickstream_data'
+
+# Elasticsearch configuration
+elasticsearch_host = 'localhost'
+elasticsearch_index = 'processed_clickstream_data'
+
+# Connect to Kafka
+consumer = KafkaConsumer(bootstrap_servers=kafka_bootstrap_servers)
+consumer.subscribe(topics=[kafka_topic])
+
+# Connect to HBase
+hbase_connection = Connection(host=hbase_host)
+table = hbase_connection.table(hbase_table)
+
+# Connect to Elasticsearch
+es = Elasticsearch(hosts=[{'host': elasticsearch_host, 'port': 9200}])
+
+# Process and store the clickstream data
+for message in consumer:
+    # Parse the Kafka message and extract clickstream data
+    click_data = parse_clickstream_data(message.value)
+    row_key = click_data['row_key']
+    user_id = click_data['user_id']
+    timestamp = click_data['timestamp']
+    url = click_data['url']
+    country = click_data['country']
+    city = click_data['city']
+    browser = click_data['browser']
+    os = click_data['os']
+    device = click_data['device']
+
+    # Store the clickstream data in HBase
+    row = table.row(row_key.encode())
+    row.update({
+        b'click_data:user_id': user_id.encode(),
+        b'click_data:timestamp': timestamp.encode(),
+        b'click_data:url': url.encode(),
+        b'geo_data:country': country.encode(),
+        b'geo_data:city': city.encode(),
+        b'user_agent_data:browser': browser.encode(),
+        b'user_agent_data:os': os.encode(),
+        b'user_agent_data:device': device.encode()
+    })
+    table.put(row_key.encode(), row)
+
+    # Periodically process the clickstream data
+    if should_process_data():
+        processed_data = process_clickstream_data(table)
+        for item in processed_data:
+            url = item['url']
+            country = item['country']
+            num_clicks = item['num_clicks']
+            unique_users = item['unique_users']
+            avg_time_spent = item['avg_time_spent']
+
+            # Index the processed data in Elasticsearch
+            document = {
+                'url': url,
+                'country': country,
+                'num_clicks': num_clicks,
+                'unique_users': unique_users,
+                'avg_time_spent': avg_time_spent
+            }
+            es.index(index=elasticsearch_index, body=document)
+
+
+-----------------------------------------------------------------------
+CREATE TABLE click_data (
+    row_key VARCHAR(255) PRIMARY KEY,
+    user_id INT,
+    timestamp DATETIME,
+    url VARCHAR(255)
+);
+
+
+INSERT INTO click_data (row_key, user_id, timestamp, url)
+VALUES ('unique_identifier', 12345, '2023-07-13 10:30:00', 'https://***.com');
+
+
+
+CREATE TABLE geo_data (
+    row_key VARCHAR(255) PRIMARY KEY,
+    user_id INT,
+    timestamp DATETIME,
+    url VARCHAR(255),
+    country VARCHAR(255),
+    city VARCHAR(255)
+);
+
+INSERT INTO geo_data (row_key, user_id, timestamp, url, country, city)
+VALUES ('unique_identifier', 12345, '2023-07-13 10:30:00', 'https://****.com', 'United States', 'New York');
+
+
+
+
+CREATE TABLE user_agent_data (
+    row_key VARCHAR(255) PRIMARY KEY,
+    user_id INT,
+    timestamp DATETIME,
+    url VARCHAR(255),
+    browser VARCHAR(255),
+    operating_system VARCHAR(255),
+    device VARCHAR(255)
+);
+
+
+INSERT INTO user_agent_data (row_key, user_id, timestamp, url, browser, operating_system, device)
+VALUES ('unique_identifier', 12345, '2023-07-13 10:30:00', 'https://***.com', 'Chrome', 'Windows 10', 'Desktop');
+
