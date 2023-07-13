@@ -140,3 +140,30 @@ CREATE TABLE user_agent_data (
 INSERT INTO user_agent_data (row_key, user_id, timestamp, url, browser, operating_system, device)
 VALUES ('unique_identifier', 12345, '2023-07-13 10:30:00', 'https://***.com', 'Chrome', 'Windows 10', 'Desktop');
 
+-------------------------------------------------------
+# Elasticsearch
+#active elasticsearch service
+systemct1 status elasticsearch.service
+
+ 
+
+#Check all the Information of Elastic search Sevice
+curl 127.0.0.1:9200
+
+ 
+
+#put index name as test_index_1
+curl -XPUT "localhost:9200/test_index_1?pretty" -H 'Content-Type: application/json' -d 
+'-d { "setting" : {"number_of_replicas" :2},
+        "mapping" : {"click_data" :{"properties" : 
+        {"row_key" : {"type": "text"},
+        "user_id" : {"type" : "integer"},
+        "timestamp" : {"type" : "date" , "format" : "yyyy-mm-dd"},
+        "url" : {"type" : "text"} 
+        }}}}
+
+ 
+
+
+#getting tha deatils index name
+curl -X GET *localhost:9200/_cat/indices?v&pretty
